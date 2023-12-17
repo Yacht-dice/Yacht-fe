@@ -13,12 +13,11 @@ import avatar3 from "../assets/Char3.png";
 const avatarList = [avatar1, avatar2, avatar3];
 
 let stompClient = null;
-function Matchup() {
+function MatchupGuest() {
   useEffect(() => {
     connect();
   }, []); // 빈 배열을 전달하여 컴포넌트가 마운트될 때만 실행
   const navigate = useHistory();
-  const [roomCode, setRoomCode] = useState("");
   const [myData, setMyData] = useState({
     userName: "",
     avatarNum: 0,
@@ -34,31 +33,19 @@ function Matchup() {
 
   // 소켓 연결 함수
   const connect = () => {
-    axios
-      .get("https://api.yachtdice.site/api/rooms/code", {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
-        },
-      })
-      .then((r) => {
-        console.log(r.data);
-        localStorage.setItem("roomCode", r.data);
-        setRoomCode(r.data);
+    let Sock = new SockJS("https://api.yachtdice.site/ws");
 
-        let Sock = new SockJS("https://api.yachtdice.site/ws");
+    //웹소켓 객체를 받아온다
+    stompClient = over(Sock);
 
-        //웹소켓 객체를 받아온다
-        stompClient = over(Sock);
-
-        // (header,callback,error)
-        stompClient.connect(
-          {
-            Authorization: `${localStorage.getItem("accessToken")}`,
-          },
-          onConnected,
-          onError
-        );
-      });
+    // (header,callback,error)
+    stompClient.connect(
+      {
+        Authorization: `${localStorage.getItem("accessToken")}`,
+      },
+      onConnected,
+      onError
+    );
   };
 
   const onConnected = () => {
@@ -69,24 +56,41 @@ function Matchup() {
       connected: true,
     });
     stompClient.subscribe(
-      `/sub/games/${localStorage.getItem("roomCode")}/host`,
+      `/sub/games/${localStorage.getItem("roomCode")}/guest`,
       onMessageReceived
     );
-    //newJoin();
+    newJoin();
   };
 
   const onError = (err) => {
     console.log(err);
   };
 
-  const onPlay = () => {
+  const newJoin = () => {
     //메세지 객체 생성
     let data = null;
+
     //(url, header, body(string))
     stompClient.send(
-      `/pub/games/${localStorage.getItem("roomCode")}/host`,
+      `/pub/games/${localStorage.getItem("roomCode")}/guest`,
       {},
       data
+    );
+  };
+
+  const onPlay = () => {
+    //메세지 객체 생성
+    let data = {
+      status: "PLAY",
+    };
+    let message = {
+      message: JSON.stringify(data),
+    };
+    //(url, header, body(string))
+    stompClient.send(
+      `/pub/games/${localStorage.getItem("roomCode")}/guest`,
+      {},
+      JSON.stringify(message)
     );
     localStorage.setItem("isHost", true);
   };
@@ -95,7 +99,7 @@ function Matchup() {
     let payloadData = JSON.parse(payload.body);
     console.log(payloadData);
     switch (payloadData.status) {
-      case "GUEST":
+      case "HOST":
         setOppData({
           ...oppData,
           userName: payloadData.nickname,
@@ -103,6 +107,9 @@ function Matchup() {
           connected: true,
         });
         break;
+      case "PLAYING":
+        navigate.push("/InGame");
+        localStorage.setItem("isHost", false);
     }
   };
   return (
@@ -120,30 +127,6 @@ function Matchup() {
         <span className="text-2xl mb-20 text-secondary">
           {myData.connected ? myData.userName : "Connecting..."}
         </span>
-        <button
-          type="button"
-          className="flex w-80 h-10 mb-3 justify-center items-center rounded-full bg-primary px-3 py-1.5 text-xl font-semibold leading-6 text-white shadow-sm hover:bg-primaryHover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
-        >
-          Room Code: {roomCode}
-        </button>
-        {myData.connected && oppData.connected ? (
-          <Link to="/InGame">
-            <button
-              type="button"
-              className="flex w-40 h-10 mb-3 justify-center items-center rounded-full bg-secondary px-3 py-1.5 text-xl font-semibold leading-6 text-white shadow-sm hover:bg-secondarytHover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
-              onClick={onPlay}
-            >
-              Play!
-            </button>
-          </Link>
-        ) : (
-          <div
-            type="button"
-            className="flex w-40 h-10 mb-3 justify-center items-center rounded-full bg-gray-400 px-3 py-1.5 text-xl font-semibold leading-6 text-white shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
-          >
-            Play!
-          </div>
-        )}
       </div>
       {oppData.connected ? (
         <div className="flex flex-col items-center w-1/2">
@@ -165,4 +148,4 @@ function Matchup() {
   );
 }
 
-export default Matchup;
+export default MatchupGuest;

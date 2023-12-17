@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useHistory } from "react-router-dom";
 
 import { over } from "stompjs";
 import SockJS from "sockjs-client";
@@ -19,6 +20,7 @@ const avatarList = [avatar1, avatar2, avatar3];
 
 let stompClient = null;
 function InGame() {
+  const navigate = useHistory();
   const [result, setResult] = useState(null);
   const [turn, setTurn] = useState("GUEST");
   const [myData, setMyData] = useState({
@@ -85,6 +87,10 @@ function InGame() {
   }, []);
 
   useEffect(() => {
+    setRollCount(3);
+  }, [turn]);
+
+  useEffect(() => {
     if (checkWin()) {
       if (myTable.total > oppTable.total) {
         setResult(1);
@@ -120,7 +126,10 @@ function InGame() {
       avatarNum: localStorage.getItem("avatarNum"),
       connected: true,
     });
-    stompClient.subscribe("/sub/games", onMessageReceived);
+    stompClient.subscribe(
+      `/sub/games/${localStorage.getItem("roomCode")}`,
+      onMessageReceived
+    );
     newJoin();
   };
 
@@ -138,7 +147,11 @@ function InGame() {
       message: JSON.stringify(data),
     };
 
-    stompClient.send("/pub/games", {}, JSON.stringify(message));
+    stompClient.send(
+      `/pub/games/${localStorage.getItem("roomCode")}`,
+      {},
+      JSON.stringify(message)
+    );
   };
 
   const ecoJoin = () => {
@@ -151,8 +164,11 @@ function InGame() {
       message: JSON.stringify(data),
     };
 
-    stompClient.send("/pub/games", {}, JSON.stringify(message));
-    setTurn("HOST");
+    stompClient.send(
+      `/pub/games/${localStorage.getItem("roomCode")}`,
+      {},
+      JSON.stringify(message)
+    );
   };
 
   const updateDice = (newDices) => {
@@ -165,7 +181,11 @@ function InGame() {
       message: JSON.stringify(data),
     };
     //(url, header, body(string))
-    stompClient.send("/pub/games", {}, JSON.stringify(message));
+    stompClient.send(
+      `/pub/games/${localStorage.getItem("roomCode")}`,
+      {},
+      JSON.stringify(message)
+    );
   };
 
   const updateTable = (newTable) => {
@@ -178,7 +198,11 @@ function InGame() {
       message: JSON.stringify(data),
     };
     //(url, header, body(string))
-    stompClient.send("/pub/games", {}, JSON.stringify(message));
+    stompClient.send(
+      `/pub/games/${localStorage.getItem("roomCode")}`,
+      {},
+      JSON.stringify(message)
+    );
   };
 
   //메세지 받았을 때 (payload 데이터가 들어옴)
@@ -195,6 +219,7 @@ function InGame() {
             connected: true,
           });
           ecoJoin();
+          setTurn("HOST");
           break;
         case "ECOJOIN":
           setOppData({
@@ -239,6 +264,9 @@ function InGame() {
     updateDice([...newRandomDices]);
     //비동기 오류로 dice 값까지 한번에 state 변경함
     setDices([...newRandomDices]);
+    setRollCount((prev) => {
+      return prev - 1;
+    });
     setTempTable(calcTempTable(newRandomDices));
   };
 
@@ -374,7 +402,7 @@ function InGame() {
           {myTable[scorename] === null && turn === "HOST" ? (
             <button
               type="button"
-              className="flex flex-row justify-center items-center bg-gray-200 w-1/2 text-secondary hover:bg-primaryHover"
+              className="flex flex-row justify-center items-center bg-gray-200 w-1/2 text-slate-300 hover:bg-primary hover:text-secondary"
               onClick={() => {
                 setTable(scorename);
               }}
@@ -382,7 +410,7 @@ function InGame() {
               {tempTable[scorename]}
             </button>
           ) : (
-            <div className="flex flex-row justify-center items-center bg-green-200 w-1/2 text-secondary">
+            <div className="flex flex-row justify-center items-center bg-gray-200 w-1/2 text-secondary">
               {myTable[scorename]}
             </div>
           )}
@@ -403,13 +431,17 @@ function InGame() {
               {null}
             </div>
           ) : (
-            <div className="flex flex-row justify-center items-center bg-green-200 w-1/2 text-secondary">
+            <div className="flex flex-row justify-center items-center bg-gray-200 w-1/2 text-secondary">
               {oppTable[scorename]}
             </div>
           )}
         </div>
       </div>
     );
+  };
+
+  const handleEnd = () => {
+    navigate.push("/Lobby");
   };
 
   return (
@@ -450,8 +482,37 @@ function InGame() {
             <CreateDice num={dices[3]} />
             <CreateDice num={dices[4]} />
           </div>
+          {rollCount === 3 && (
+            <div className="flex flex-row gap-x-3">
+              <div className="w-3 h-3 bg-secondary rounded-full"></div>
+              <div className="w-3 h-3 bg-secondary rounded-full"></div>
+              <div className="w-3 h-3 bg-secondary rounded-full"></div>
+            </div>
+          )}
+          {rollCount === 2 && (
+            <div className="flex flex-row gap-x-3">
+              <div className="w-3 h-3 bg-secondary rounded-full"></div>
+              <div className="w-3 h-3 bg-secondary rounded-full"></div>
+              <div className="w-3 h-3 bg-slate-400 rounded-full"></div>
+            </div>
+          )}
+          {rollCount === 1 && (
+            <div className="flex flex-row gap-x-3">
+              <div className="w-3 h-3 bg-secondary rounded-full"></div>
+              <div className="w-3 h-3 bg-slate-400 rounded-full"></div>
+              <div className="w-3 h-3 bg-slate-400 rounded-full"></div>
+            </div>
+          )}
+          {rollCount === 0 && (
+            <div className="flex flex-row gap-x-3">
+              <div className="w-3 h-3 bg-slate-400 rounded-full"></div>
+              <div className="w-3 h-3 bg-slate-400 rounded-full"></div>
+              <div className="w-3 h-3 bg-slate-400 rounded-full"></div>
+            </div>
+          )}
         </div>
-        {turn === "HOST" ? (
+
+        {turn === "HOST" && rollCount !== 0 ? (
           <button
             type="button"
             className="flex w-40 h-10 justify-center items-center rounded-full bg-secondary px-3 py-1.5 text-xl font-semibold leading-6 text-white shadow-sm hover:bg-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
@@ -495,9 +556,48 @@ function InGame() {
         <TableCellOpp scorename={"yacht"} />
         <TableCellOpp scorename={"total"} />
       </div>
-      {result === 1 && <div>win</div>}
-      {result === 0 && <div>lose</div>}
-      {result === 2 && <div>draw</div>}
+      {result === 1 && (
+        <div className="flex flex-col justify-center items-center fixed top-0 left-0 w-screen h-screen bg-white bg-opacity-50 backdrop-blur-lg">
+          <span className="text-3xl font-semibold text-secondary mb-5">
+            You Win
+          </span>
+          <button
+            type="button"
+            className="flex w-40 h-10 justify-center items-center rounded-full bg-secondary px-3 py-1.5 text-xl font-semibold leading-6 text-white shadow-sm hover:bg-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+            onClick={handleEnd}
+          >
+            Back to Lobby
+          </button>
+        </div>
+      )}
+      {result === 0 && (
+        <div className="flex flex-col justify-center items-center fixed top-0 left-0 w-screen h-screen bg-white bg-opacity-50 backdrop-blur-lg">
+          <span className="text-3xl font-semibold text-secondary mb-5">
+            You Lose
+          </span>
+          <button
+            type="button"
+            className="flex w-40 h-10 justify-center items-center rounded-full bg-secondary px-3 py-1.5 text-xl font-semibold leading-6 text-white shadow-sm hover:bg-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+            onClick={handleEnd}
+          >
+            Back to Lobby
+          </button>
+        </div>
+      )}
+      {result === 2 && (
+        <div className="flex flex-col justify-center items-center fixed top-0 left-0 w-screen h-screen bg-white bg-opacity-50 backdrop-blur-lg">
+          <span className="text-3xl font-semibold text-secondary mb-5">
+            You Draw
+          </span>
+          <button
+            type="button"
+            className="flex w-40 h-10 justify-center items-center rounded-full bg-secondary px-3 py-1.5 text-xl font-semibold leading-6 text-white shadow-sm hover:bg-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+            onClick={handleEnd}
+          >
+            Back to Lobby
+          </button>
+        </div>
+      )}
     </div>
   );
 }
